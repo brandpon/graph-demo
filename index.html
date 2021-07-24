@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Money Flow Widget</title>
+  <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <script type="application/javascript" src="https://unpkg.com/babel-standalone@6.26.0/babel.js"></script>
+</head>
+
+<!-- TODO: 
+    Make graphics properly scale to size of parent properly, ie. height and width of parent div. Currently most values were achieved through guess and check
+    Clean up "magic variables" in code
+ -->
+
+<body>
+
+  <div id="root"></div>
+  <script type="text/babel">
+
+    const rootElement = document.getElementById('root')
+    class Widget extends React.Component {
+
+      constructor(props) {
+        super(props);
+
+        let income = this.props.data.income;
+        let spending = this.props.data.spending;
+
+        income.sort((a, b) => a.month - b.month);
+        spending.sort((a, b) => a.month - b.month);
+
+        const barMax = Math.max(Math.max.apply(Math, income.map(function (o) { return o.income; })), Math.max.apply(Math, spending.map(function (o) { return o.spending; })));
+        this.state = {
+          overall_budget: this.props.data.overall_budget,
+          income: income,
+          spending: spending,
+          backgroundColor: this.props.backgroundColor || '#172041',
+          spendingColor: this.props.spendingColor || '#427DFC',
+          incomeColor: this.props.incomeColor || '#0CE381',
+          barMax: barMax,
+          loading: true,
+          selectedMonth: income.length - 1,
+        };
+
+        this.handleClick = this.handleClick.bind(this);
+      };
+
+      componentDidMount() {
+        const height = document.getElementById('container').clientHeight;
+        const width = document.getElementById('container').clientWidth;
+        const x0 = 25;
+        const xLength = width - (x0 * 2);
+        const yAxisX = x0 + xLength;
+
+        const y0 = 50;
+        const yLength = height - (y0 * 2);
+        const xAxisY = y0 + yLength;
+
+        this.setState(
+          {
+            height: height,
+            width: width,
+            x0: x0,
+            xLength: xLength,
+            yAxisX: yAxisX,
+
+            y0: y0,
+            yLength: yLength,
+            xAxisY: xAxisY,
+
+            barScaling: (this.state.barMax/height) * 2,
+            loading: false,
+          });
+      };
+
+      handleClick(e) {
+        this.setState({ selectedMonth: e.target.id });
+      }
+
+      render() {
+        return (
+          <div>
+            {!this.state.loading ?
+              <svg height={this.state.height} width={this.state.width}>
+
+                {/* graph */}
+                <rect
+                  height={this.state.height}
+                  width={this.state.width}
+                  style={{ fill: this.state.backgroundColor }}
+                />
+
+                {/* overall budget line */}
+
+                <line
+                  x1={this.state.x0}
+                  x2={this.state.yAxisX - 100}
+                  y1={this.state.xAxisY - (this.state.overall_budget / this.state.barScaling)}
+                  y2={this.state.xAxisY - (this.state.overall_budget / this.state.barScaling)}
+                  stroke={"white"}
+                />
+                <text x={this.state.yAxisX - 100} y={this.state.xAxisY - (this.state.overall_budget / this.state.barScaling) - 10} style={{ fill: "white", userSelect: "none" }} >
+                  Budget ${this.state.overall_budget}
+                </text>
+
+                {/* legend */}
+                <text x={this.state.x0 - 15} y={this.state.y0 - 20} style={{ fill: "white", userSelect: "none" }} >
+                  {moment().month(this.state.income[this.state.selectedMonth].month).format('MMMM')}
+                </text>
+                <circle cx={this.state.x0 - 10} cy={this.state.y0} r="5" stroke={this.state.spendingColor} fill={this.state.spendingColor}></circle>
+                <text x={this.state.x0} y={this.state.y0 + 5} style={{ fill: "white", userSelect: "none" }} >
+                  Spending
+                </text>
+                <text x={this.state.x0} y={this.state.y0 + 25} style={{ fill: "white", userSelect: "none" }} >
+                  ${this.state.spending[this.state.selectedMonth].spending}
+                </text>
+                <circle cx={this.state.x0 + 90} cy={this.state.y0} r="5" stroke={this.state.incomeColor} fill={this.state.incomeColor}></circle>
+                <text x={this.state.x0 + 100} y={this.state.y0 + 5} style={{ fill: "white", userSelect: "none" }} >
+                  Income
+                </text>
+                <text x={this.state.x0 + 100} y={this.state.y0 + 25} style={{ fill: "white", userSelect: "none" }} >
+                  ${this.state.income[this.state.selectedMonth].income}
+                </text>
+
+                {/* bars */}
+                {this.state.spending.map((item, i) => {
+                  return (
+                    <React.Fragment key={i}>
+                      <line
+                        x1={(this.state.x0 + i * 100) * (4 / this.state.income.length)}
+                        x2={(this.state.x0 + i * 100) * (4 / this.state.income.length)}
+                        y1={this.state.xAxisY}
+                        y2={this.state.xAxisY - (item.spending / this.state.barScaling)}
+                        stroke={this.state.spendingColor}
+                        strokeWidth={10}
+                        strokeLinecap={"round"}
+                        id={i}
+                        onClick={(e) => this.handleClick(e)}
+                      />
+
+                      <text
+                        id={i}
+                        x={(this.state.x0 + i * 100) * (4 / this.state.income.length)}
+                        y={this.state.xAxisY + 25}
+                        style={{ fill: "white", userSelect: "none" }}
+                        onClick={(e) => this.handleClick(e)}
+                      >
+                        {moment().month(item.month).format('MMM')}
+                      </text>
+                    </React.Fragment>
+                  );
+                })}
+
+                {this.state.income.map((item, i) => {
+                  return (
+                    <line
+                      x1={(this.state.x0 + 20 + i * 100)  * (4 / this.state.income.length)}
+                      x2={(this.state.x0 + 20 + i * 100)  * (4 / this.state.income.length)}
+                      y1={this.state.xAxisY}
+                      y2={this.state.xAxisY - (item.income / this.state.barScaling)}
+                      stroke={this.state.incomeColor}
+                      strokeWidth={10}
+                      strokeLinecap={"round"}
+                      id={i}
+                      key={i}
+                      onClick={(e) => this.handleClick(e)}
+                    />
+                  );
+                })}
+
+              </svg>
+              : "Loading"
+            }
+          </div>
+        );
+      }
+    }
+
+    function App() {
+
+      // Dummy data
+      const data = {
+        "overall_budget": 650,
+        "spending": [
+          {
+            "month": 10,
+            "spending": 700,
+          },
+          {
+            "month": 9,
+            "spending": 300,
+          },
+          {
+            "month": 8,
+            "spending": 200,
+          },
+          {
+            "month": 7,
+            "spending": 400,
+          },
+        ],
+        "income": [
+          {
+            "month": 10,
+            "income": 500,
+          },
+          {
+            "month": 9,
+            "income": 500,
+          },
+          {
+            "month": 7,
+            "income": 1000,
+          },
+          {
+            "month": 8,
+            "income": 575.55,
+          },
+        ],
+      };
+
+      const data2 = {
+        "overall_budget": 650,
+        "spending": [
+          {
+            "month": 10,
+            "spending": 700,
+          },
+          {
+            "month": 9,
+            "spending": 300,
+          },
+        ],
+        "income": [
+          {
+            "month": 10,
+            "income": 500,
+          },
+          {
+            "month": 9,
+            "income": 500,
+          },
+        ],
+      };
+
+      return (
+        <div id="container" style={{ height: "400px", width: "500px" }}>
+          <Widget data={data} />
+        </div>
+      )
+    }
+
+    ReactDOM.render(
+      <App />,
+      rootElement
+    )
+  </script>
+</body>
+
+</html>
